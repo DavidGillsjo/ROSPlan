@@ -207,6 +207,7 @@ namespace KCL_rosplan {
 	/**
 	 * Parse a plan written by POPF
 	 */
+	/*
 	void POPFEsterelPlanParser::preparePlan(std::string &dataPath, PlanningEnvironment &environment, size_t freeActionID) {
 
 		ROS_INFO("KCL: (POPFEsterelPlanParser) Loading plan from file: %s. Initial action ID: %zu", ((dataPath + "plan.pddl").c_str()), freeActionID);
@@ -287,6 +288,94 @@ namespace KCL_rosplan {
 		}
 
 		// printPlan(plan);
+		produceEsterel();
+		infile.close();
+	}
+	*/
+
+	/**
+	 * Parse a plan written by YAHSP3
+	 */
+	void POPFEsterelPlanParser::preparePlan(std::string &dataPath, PlanningEnvironment &environment, size_t freeActionID) {
+
+		ROS_INFO("KCL: (POPFEsterelPlanParser - Yahsp) Loading plan from file: %s. Initial action ID: %zu", ((dataPath + "plan.pddl").c_str()), freeActionID);
+
+		// load plan file
+		StrlEdge* last_edge = NULL;
+		std::ifstream infile((dataPath + "plan.pddl").c_str());
+		int curr,next,nodeCount;
+		std::string line;
+		double expectedPlanDuration = 0;
+		bool planFound = false;
+		bool planRead = false;
+
+		while(!infile.eof()) {
+
+			std::getline(infile, line);
+			toLowerCase(line);
+			//ROS_INFO("Reading line: [%s]", line.c_str());
+			//ROS_INFO("Substr: [%s]", line.substr(0,4).c_str());
+			
+			if (!planRead && (planFound || (line.substr(0,4).compare("0: (") == 0))) {
+
+				ROS_INFO("Found plan");
+				if (!planFound) {
+					//ROS_INFO("initializing");
+					// prepare plan
+					plan_nodes.clear();
+					plan_edges.clear();
+					action_list.clear();
+					expectedPlanDuration = atof(line.substr(25).c_str());
+					planFound = true;
+					planRead = false;
+
+					// The last edge that will lead to the next action.
+					last_edge = NULL;
+				}
+
+				// 0.000: (goto_waypoint kenny wp0 wp1)  [10.000]					
+				if (line.length()<2) {
+					//ROS_INFO("Finished");
+					planRead = true;
+					continue;
+				}
+
+				// dispatchTime
+				curr = line.find(":");
+				double dispatchTime = (double)atof(line.substr(0,curr).c_str());
+				curr += 3;
+				//ROS_INFO("Dispatch time %f", dispatchTime);
+
+				// action
+				next=line.find(")",curr);
+				std::string name = line.substr(curr,next-curr).c_str();
+				//ROS_INFO("Name %s", name.c_str());
+				// duration
+				curr=line.find("[",curr)+1;
+				next=line.find("]",curr);
+				double duration = (double)atof(line.substr(curr,next-curr).c_str());
+				//ROS_INFO("Duration %f", duration);
+				{
+					StrlNode* node = new StrlNode();
+					StrlEdge* edge = new StrlEdge();
+					createNodeAndEdge(name, dispatchTime, duration, nodeCount, environment, *node, *edge);
+					++nodeCount;
+
+					if (last_edge != NULL)
+					{
+						node->input.push_back(last_edge);
+						last_edge->sinks.push_back(node);
+					}
+					last_edge = edge;
+				}
+
+			} else if (line.substr(0,6).compare("Makespan :")==0) {
+				expectedPlanDuration = atof(line.substr(10).c_str());
+
+			}
+		}
+
+		//printPlan(plan);
 		produceEsterel();
 		infile.close();
 	}

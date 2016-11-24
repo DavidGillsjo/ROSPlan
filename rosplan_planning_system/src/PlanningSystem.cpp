@@ -369,6 +369,8 @@ std::cout << "OKKKES " << problem_path << std::endl;
 			getline(planfile, line);
 			if (line.find("; Plan found", 0) != std::string::npos)
 				solved = true;
+			if (line.find("Total wc time", 0) != std::string::npos)
+				solved = true;
 			if (line.find("ff: found legal plan as follows", 0) != std::string::npos)
 				solved = true;
 		}

@@ -219,6 +219,8 @@ namespace KCL_rosplan {
 		double expectedPlanDuration = 0;
 		bool planFound = false;
 		bool planRead = false;
+		// The last edge that will lead to the next action for each agent.
+		std::map <std::string, StrlEdge*> last_agent_edge;
 
 		while(!infile.eof()) {
 
@@ -234,9 +236,6 @@ namespace KCL_rosplan {
 				expectedPlanDuration = atof(line.substr(25).c_str());
 				planFound = true;
 				planRead = false;
-
-				// The last edge that will lead to the next action.
-				last_edge = NULL;
 
 			} else if (line.substr(0,6).compare("; time")!=0) {
 				//consume useless lines
@@ -274,12 +273,23 @@ namespace KCL_rosplan {
 						createNodeAndEdge(name, dispatchTime, duration, nodeCount, environment, *node, *edge);
 						++nodeCount;
 
-						if (last_edge != NULL)
-						{
-							node->input.push_back(last_edge);
-							last_edge->sinks.push_back(node);
+						std::vector<diagnostic_msgs::KeyValue>::iterator pair_it;
+						for(pair_it = node->dispatch_msg.parameters.begin(); pair_it!=node->dispatch_msg.parameters.end(); pair_it++) {
+
+							if (pair_it->key == "turtlebot" || pair_it->key == "drone" || pair_it->key == "agent") {
+
+								// Found an agent key, link to previous agent node.
+								std::string agent = pair_it->value;
+								if(last_agent_edge.find(agent) != last_agent_edge.end())
+								{
+
+								    //Agent has a previous edge
+									node->input.push_back(last_agent_edge[agent]);
+									last_agent_edge[agent]->sinks.push_back(node);
+								}
+								last_agent_edge[agent] = edge;
+							}
 						}
-						last_edge = edge;
 					}
 				}
 				planRead = true;

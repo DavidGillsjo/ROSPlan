@@ -233,6 +233,7 @@ namespace KCL_rosplan {
 				plan_nodes.clear();
 				plan_edges.clear();
 				action_list.clear();
+				last_agent_edge.clear();
 				expectedPlanDuration = atof(line.substr(25).c_str());
 				planFound = true;
 				planRead = false;

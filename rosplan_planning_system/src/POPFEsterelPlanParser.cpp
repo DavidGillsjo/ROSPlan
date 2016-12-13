@@ -305,15 +305,16 @@ namespace KCL_rosplan {
 							if(concurrency_constraining_types.find(instance_type) != concurrency_constraining_types.end()) 
 							{
 
-								// Found a concurrency constraining type, link to previous type node.
-								if(last_type_edge.find(instance_type) != last_type_edge.end())
+								std::string instance = pair_it->value;
+								// Found a concurrency constraining type, link to previous node for this object/instance.
+								if(last_type_edge.find(instance) != last_type_edge.end())
 								{
 
 								    //Type has a previous edge
-									node->input.push_back(last_type_edge[instance_type]);
-									last_type_edge[instance_type]->sinks.push_back(node);
+									node->input.push_back(last_type_edge[instance]);
+									last_type_edge[instance]->sinks.push_back(node);
 								}
-								last_type_edge[instance_type] = edge;
+								last_type_edge[instance] = edge;
 							}
 						}
 					}

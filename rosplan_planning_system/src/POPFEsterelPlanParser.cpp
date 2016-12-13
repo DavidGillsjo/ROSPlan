@@ -8,6 +8,13 @@ namespace KCL_rosplan {
 	{
 		// knowledge interface
 		update_knowledge_client = nh.serviceClient<rosplan_knowledge_msgs::KnowledgeUpdateService>("/kcl_rosplan/update_knowledge_base");
+
+		// Get paramaeter
+		std::vector<std::string> types_list;
+		if (node_handle->getParam("/rosplan_planning_system/concurrency_constraining_types", types_list)) {
+			concurrency_constraining_types = std::set<std::string>(types_list.begin(), types_list.end());
+		}
+
 	}
 
 	void POPFEsterelPlanParser::reset() {
@@ -219,8 +226,11 @@ namespace KCL_rosplan {
 		double expectedPlanDuration = 0;
 		bool planFound = false;
 		bool planRead = false;
-		// The last edge that will lead to the next action for each agent.
-		std::map <std::string, StrlEdge*> last_agent_edge;
+		// The last edge that will lead to the next action for each type of instance.
+		std::map <std::string, StrlEdge*> last_type_edge;
+
+		// Force sequential plan if no concurrency constraining types are given.
+		bool force_sequential = concurrency_constraining_types.empty();
 
 		while(!infile.eof()) {
 
@@ -233,7 +243,8 @@ namespace KCL_rosplan {
 				plan_nodes.clear();
 				plan_edges.clear();
 				action_list.clear();
-				last_agent_edge.clear();
+				last_type_edge.clear();
+				last_edge = NULL;
 				expectedPlanDuration = atof(line.substr(25).c_str());
 				planFound = true;
 				planRead = false;
@@ -274,21 +285,35 @@ namespace KCL_rosplan {
 						createNodeAndEdge(name, dispatchTime, duration, nodeCount, environment, *node, *edge);
 						++nodeCount;
 
+						if(force_sequential)
+						{
+							// Tie to previous node and read next line
+							if (last_edge != NULL) {
+								node->input.push_back(last_edge);
+								last_edge->sinks.push_back(node);
+							}
+							last_edge = edge;
+							continue;
+
+						}
+
 						std::vector<diagnostic_msgs::KeyValue>::iterator pair_it;
 						for(pair_it = node->dispatch_msg.parameters.begin(); pair_it!=node->dispatch_msg.parameters.end(); pair_it++) {
 
-							if (pair_it->key == "turtlebot" || pair_it->key == "drone" || pair_it->key == "agent") {
+							// Check if type is included in list for constraining concurrency
+							std::string instance_type = environment.object_type_map[pair_it->value];
+							if(concurrency_constraining_types.find(instance_type) != concurrency_constraining_types.end()) 
+							{
 
-								// Found an agent key, link to previous agent node.
-								std::string agent = pair_it->value;
-								if(last_agent_edge.find(agent) != last_agent_edge.end())
+								// Found a concurrency constraining type, link to previous type node.
+								if(last_type_edge.find(instance_type) != last_type_edge.end())
 								{
 
-								    //Agent has a previous edge
-									node->input.push_back(last_agent_edge[agent]);
-									last_agent_edge[agent]->sinks.push_back(node);
+								    //Type has a previous edge
+									node->input.push_back(last_type_edge[instance_type]);
+									last_type_edge[instance_type]->sinks.push_back(node);
 								}
-								last_agent_edge[agent] = edge;
+								last_type_edge[instance_type] = edge;
 							}
 						}
 					}
